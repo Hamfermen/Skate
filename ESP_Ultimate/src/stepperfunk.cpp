@@ -18,7 +18,6 @@ CheckProfile stateProfile = startCheck;
 
 SpeedyStepper stepperX, stepperY, stepperD, stepperC, stepperCl;
 
-
 int8_t checkAllDisks()
 {
   return checkerD == DiskDone;
@@ -69,8 +68,9 @@ void alarmProcess()
   }
 }
 
-uint8_t initializeGrind() { 
-    return 0; 
+uint8_t initializeGrind()
+{
+  return 0;
 }
 
 uint8_t moveX(float x)
@@ -203,7 +203,6 @@ int8_t startSharpening()
       checker = Step_6;
       stepperY.setCurrentPositionInMillimeters(0);
       stepperY.setupMoveInMillimeters(0);
-
     }
     break;
   case Step_6:
@@ -419,7 +418,6 @@ void initializeZeros()
       stepperC.setCurrentPositionInMillimeters(0);
       stepperC.setupMoveInMillimeters(0);
       initialState = afterC;
-
     }
     break;
   case afterC:
@@ -524,19 +522,16 @@ void handler()
   if (c_zero != digitalRead(conterweihgt_pin))
   {
     c_zero = digitalRead(conterweihgt_pin);
-
   }
 
   if (cl_zero != !digitalRead(zeroCl))
   {
     cl_zero = !digitalRead(zeroCl);
-
   }
 
   if (isTouched != (digitalRead(diametr)))
   {
     isTouched = (digitalRead(diametr));
-
   }
 
   if (!isAlarm && (!digitalRead(alarmButton) || isAlarmButton))
@@ -619,7 +614,6 @@ void handler()
   {
     // Serial.println("conterweihgt_zero");
   }
-
 }
 
 void recieveData()
@@ -668,6 +662,20 @@ void recieveData()
     case 'l':
       voltage = Serial.readStringUntil('\n').toFloat();
       break;
+    case 'q':
+      profileArrX[0] = Serial.readStringUntil('\n').toFloat();
+      profileArrX[1] = Serial.readStringUntil('\n').toFloat();
+      profileArrX[2] = Serial.readStringUntil('\n').toFloat();
+      profileArrX[3] = Serial.readStringUntil('\n').toFloat();
+
+      profileArrZ[0] = Serial.readStringUntil('\n').toFloat();
+      profileArrZ[1] = Serial.readStringUntil('\n').toFloat();
+      profileArrZ[2] = Serial.readStringUntil('\n').toFloat();
+      profileArrZ[3] = Serial.readStringUntil('\n').toFloat();
+
+      Serial.println("Profile X: " + String(profileArrX[0]) + " " + String(profileArrX[1]) + " " + String(profileArrX[2]) + " " + String(profileArrX[3]));
+      Serial.println("Profile Z: " + String(profileArrZ[0]) + " " + String(profileArrZ[1]) + " " + String(profileArrZ[2]) + " " + String(profileArrZ[3]));
+      break;
     case 'r':
       isProfButton = whatNow[1] == '1';
       break;
@@ -699,7 +707,7 @@ int8_t startSharpening_t()
     if (isDown || true)
     {
       checker_t = Step_t_3;
-            stepperC.setSpeedInStepsPerSecond(speedZ);
+      stepperC.setSpeedInStepsPerSecond(speedZ);
       stepperC.setAccelerationInStepsPerSecondPerSecond(accZ);
 
       stepperX.setSpeedInMillimetersPerSecond(xspeed);
@@ -715,9 +723,7 @@ int8_t startSharpening_t()
   case Step_t_4:
     if (moveX(1))
     {
-
       checker_t = Step_t_5;
-
     }
     break;
   case Step_t_5:
@@ -729,8 +735,8 @@ int8_t startSharpening_t()
   case Step_t_6:
     if (moveC(-(profileArrZ[0] - 12)))
     {
-      stepperC.setSpeedInMillimetersPerSecond(abs(profileArrZ[0] - profileArrZ[1])/(abs(profileArrX[1] - profileArrX[0]) / xspeed));
-      stepperC.setAccelerationInMillimetersPerSecondPerSecond(abs(profileArrZ[0] - profileArrZ[1])/(abs(profileArrX[1] - profileArrX[0]) / xspeed) * 2);
+      stepperC.setSpeedInMillimetersPerSecond(abs(profileArrZ[0] - profileArrZ[1]) / (abs(profileArrX[1] - profileArrX[0]) / xspeed));
+      stepperC.setAccelerationInMillimetersPerSecondPerSecond(abs(profileArrZ[0] - profileArrZ[1]) / (abs(profileArrX[1] - profileArrX[0]) / xspeed) * 2);
       checker_t = Step_t_7;
     }
     break;
@@ -745,8 +751,8 @@ int8_t startSharpening_t()
     moveX(profileArrX[3] + x_bias);
     if (abs(stepperX.getCurrentPositionInMillimeters() - profileArrX[2]) < 0.1)
     {
-      stepperC.setSpeedInMillimetersPerSecond(abs(profileArrZ[3] - profileArrZ[2])/(abs(profileArrX[3] - profileArrX[2]) / xspeed));
-      stepperC.setAccelerationInMillimetersPerSecondPerSecond(abs(profileArrZ[3] - profileArrZ[2])/(abs(profileArrX[3] - profileArrX[2]) / xspeed) * 2);
+      stepperC.setSpeedInMillimetersPerSecond(abs(profileArrZ[3] - profileArrZ[2]) / (abs(profileArrX[3] - profileArrX[2]) / xspeed));
+      stepperC.setAccelerationInMillimetersPerSecondPerSecond(abs(profileArrZ[3] - profileArrZ[2]) / (abs(profileArrX[3] - profileArrX[2]) / xspeed) * 2);
       checker_t = Step_t_9;
     }
     break;
@@ -762,7 +768,7 @@ int8_t startSharpening_t()
   case Step_t_10:
     if (moveC(-1) && moveX(profileArrX[3] + x_bias))
     {
-            stepperX.setSpeedInMillimetersPerSecond(24);
+      stepperX.setSpeedInMillimetersPerSecond(24);
       stepperX.setAccelerationInMillimetersPerSecondPerSecond(48);
       checker_t = Step_t_11;
     }
@@ -786,7 +792,8 @@ uint8_t checkProfileFun(float speed, float time)
   switch (stateProfile)
   {
   case startCheck:
-    if (moveY(170.83)){
+    if (moveY(170.83))
+    {
       stepperX.setSpeedInMillimetersPerSecond(speed);
       moveX(600);
       timeCheck = millis();
@@ -881,7 +888,6 @@ uint8_t checkProfileFun(float speed, float time)
   return stateProfile == endProfile;
 }
 
-
 float getXfromlazer(int8_t sign)
 {
 
@@ -929,7 +935,7 @@ void updateLazer()
   leftZ = rightZ;
   leftVoltage = rightVoltage;
   rightVoltage = voltage;
-  rightZ =(5.3 - voltage) * 6.1648049166;
+  rightZ = (5.3 - voltage) * 6.1648049166;
   rightX = stepperX.getCurrentPositionInMillimeters();
 }
 
@@ -939,5 +945,4 @@ void transmitData()
   Serial.print(stepperX.getCurrentPositionInMillimeters());
   Serial.print(",z:");
   Serial.println(voltage * 6.1648049166);
-
 }
