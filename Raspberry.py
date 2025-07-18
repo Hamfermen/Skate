@@ -7,6 +7,7 @@ import board
 import busio
 from enum import Enum, auto
 from adafruit_ina219 import INA219
+import csv
 
 
 class ProfileState(Enum):
@@ -55,7 +56,11 @@ def send_volt():
 def check_prof():
    global left_x, right_x, left_z, right_z, left_voltage, right_voltage, voltage, x_value
    update_laser()
-   #print(left_voltage, right_voltage, left_x, right_x, left_z, right_z)
+   print(left_voltage, right_voltage, left_x, right_x, left_z, right_z)
+   with open("laser_value", "a", newline="") as csvfile:
+       logs=csv.writer(csvfile, delimiter =";", quoting = csv.QUOTE_MINIMAL)
+       logs.writerow([left_voltage, right_voltage, left_x, right_x, left_z, right_z]) 
+         
    
    check_profile_fun()
    app.after(500, check_prof)
@@ -76,12 +81,30 @@ def get_x_from_laser(sign_x, sign_z):
     
     global right_x, right_z, left_x, left_z
     r = 50
+
     hy = right_z - left_z
+
+    if hy == 0:
+        hy = 0.1
+
     hx = right_x - left_x
+
+    if hx == 0:
+        hx = 3
+  
     cy = right_z - left_z
     cx = 0
     l = hy * cy / (hy**2 + hx**2)
-    vx = (left_x + hx * l) - left_x
+    if l==0:
+        l=1
+    else:
+        print(l)
+    
+    if right_x == left_x:
+        difference = 3
+        vx = (left_x + difference*l) - left_x
+    else:
+        vx = (left_x + hx * l) - left_x
     vy = (left_z + hy * l) - right_z
     
     x = -sign_x * vx * r / (vx**2 + vy**2)**0.5 + right_x
@@ -127,15 +150,9 @@ def check_profile_fun():
    
 	elif stateProfile == ProfileState.PROFILE_STOP:
 		send_command("e1")
-        send_prof()
 		stateProfile = ProfileState.END_PROFILE
 
 		return stateProfile == ProfileState.END_PROFILE
-
-def send_prof():
-    send_command("q1")
-    [send_command(f"{profile_arr_x[i]}") for i in range(0, 3)]
-    [send_command(f"{profile_arr_z[i]}") for i in range(0, 3)]
 
 def print_debug(idx, left_v, lx, lz, rz, pos_x, pos_z):
     print("----------------------------")
