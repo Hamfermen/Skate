@@ -1,5 +1,6 @@
 #include <Arduino.h>
 #include <SpeedyStepper.h>
+#include <FlexyStepper.h>
 
 #include "static.h"
 #include "enum.h"
@@ -44,7 +45,7 @@ void setup()
   stepperX.setStepsPerMillimeter(scale_mm_to_steps_x);
   stepperX.setSpeedInStepsPerSecond(speedX);
   stepperX.setAccelerationInStepsPerSecondPerSecond(accX);
-  // stepperX.setupMoveInMillimeters(-10); // + Влево
+  // stepperX.setupMoveInMillimeters(-200); // + Влево
   //-----------------
 
   //-----------------
@@ -90,7 +91,6 @@ void setup()
 void loop()
 {
 
-  // stepperC.processMovement();
 
   recieveData();
 
