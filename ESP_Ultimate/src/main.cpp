@@ -1,6 +1,7 @@
 #include <Arduino.h>
 #include <Wire.h>
 #include <SpeedyStepper.h>
+#include <FlexyStepper.h>
 
 #define stepPinX 19
 #define dirPinX 18
@@ -298,6 +299,9 @@ typedef enum
 CheckProfile stateProfile = startCheck;
 
 uint8_t checkProfileFun(float, float);
+
+long t_changed = millis();
+
 // uint8_t checkX(uint32_t);
 
 SpeedyStepper stepperX, stepperY, stepperD, stepperC, stepperCl;
@@ -345,7 +349,7 @@ void setup()
   stepperX.setStepsPerMillimeter(scale_mm_to_steps_x);
   stepperX.setSpeedInStepsPerSecond(speedX);
   stepperX.setAccelerationInStepsPerSecondPerSecond(accX);
-  // stepperX.setupMoveInMillimeters(-10); // + Влево
+  // stepperX.setupMoveInMillimeters(-200); // + Влево
   //-----------------
 
   //-----------------
@@ -390,7 +394,6 @@ void setup()
 void loop()
 {
 
-  // stepperC.processMovement();
 
   recieveData();
 
