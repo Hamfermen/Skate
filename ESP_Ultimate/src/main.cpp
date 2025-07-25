@@ -17,9 +17,9 @@ void setup()
   pinMode(zeroD, INPUT_PULLUP);
   pinMode(zeroCl, INPUT_PULLUP);
 
-  pinMode(x_pin, INPUT);          // Устанавливаем пин как вход
-  pinMode(y_pin, INPUT);          // Устанавливаем пин как вход
-  pinMode(diametr, INPUT_PULLUP); // Устанавливаем пин как вход
+  pinMode(x_pin, INPUT);
+  pinMode(y_pin, INPUT);
+  pinMode(diametr, INPUT_PULLUP);
   pinMode(stepPinX, OUTPUT);
   pinMode(dirPinX, OUTPUT);
   pinMode(stepPinY, OUTPUT);

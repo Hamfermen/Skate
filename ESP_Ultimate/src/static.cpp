@@ -90,6 +90,9 @@ float voltage = 0; // 30 - voltage/2.72 * 30
 
 float profileArrX[100];
 float profileArrZ[100];
+
+
+uint32_t profileArrN = 0;
 uint32_t profileInd = 0;
 float step = 3;
 long long timeCheck = 0;

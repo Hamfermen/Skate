@@ -89,6 +89,8 @@ extern float voltage;
 
 extern float profileArrX[100];
 extern float profileArrZ[100];
+
+extern uint32_t profileArrN;
 extern uint32_t profileInd;
 extern float step;
 extern long long timeCheck;

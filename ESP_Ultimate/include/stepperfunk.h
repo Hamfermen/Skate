@@ -2,6 +2,7 @@
 
 #include <Arduino.h>
 #include "SpeedyStepper.h"
+#include "FlexyStepper.h"
 #include "enum.h"
 
 extern DisksCheck checkerD;
@@ -12,7 +13,8 @@ extern CheckDiamentr diamChecker;
 extern Alarm alarmProcessor;
 extern CheckProfile stateProfile;
 
-extern SpeedyStepper stepperX, stepperY, stepperD, stepperC, stepperCl;
+extern SpeedyStepper stepperX, stepperY, stepperD, stepperCl;
+extern FlexyStepper stepperC;
 
 uint8_t moveX(float);
 uint8_t moveY(float);

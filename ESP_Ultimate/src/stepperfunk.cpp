@@ -1,5 +1,6 @@
 #include <Arduino.h>
 #include <SpeedyStepper.h>
+#include <FlexyStepper.h>
 
 #include "enum.h"
 #include "defines.h"
@@ -16,7 +17,8 @@ CheckDiamentr diamChecker = StartDown;
 Alarm alarmProcessor = stop;
 CheckProfile stateProfile = startCheck;
 
-SpeedyStepper stepperX, stepperY, stepperD, stepperC, stepperCl;
+SpeedyStepper stepperX, stepperY, stepperD, stepperCl;
+FlexyStepper stepperC;
 
 int8_t checkAllDisks()
 {
@@ -37,7 +39,7 @@ void alarmProcess()
       if (!stepperD.motionComplete())
         stepperD.setupStop();
       if (!stepperC.motionComplete())
-        stepperC.setupStop();
+        stepperC.setTargetPositionToStop();
       if (!stepperCl.motionComplete())
         stepperCl.setupStop();
       alarmProcessor = processStop;
@@ -101,7 +103,7 @@ uint8_t moveC(float z)
   if (!stepperC.motionComplete())
     stepperC.processMovement();
   else if (stepperC.getCurrentPositionInMillimeters() != z)
-    stepperC.setupMoveInMillimeters(z);
+    stepperC.setTargetPositionInMillimeters(z);
   return stepperC.motionComplete();
 }
 
@@ -416,7 +418,7 @@ void initializeZeros()
     if (c_zero)
     {
       stepperC.setCurrentPositionInMillimeters(0);
-      stepperC.setupMoveInMillimeters(0);
+      stepperC.setTargetPositionInMillimeters(0);
       initialState = afterC;
     }
     break;
@@ -664,15 +666,14 @@ void recieveData()
       break;
     case 'q':
     {
-      int n = Serial.readStringUntil('\n').toInt();
-      for (int i = 0; i < n; i++)
+      profileArrN = Serial.readStringUntil('\n').toInt();
+      for (int i = 0; i < profileArrN; i++)
       {
         profileArrX[i] = Serial.readStringUntil('\n').toFloat();
         profileArrZ[i] = Serial.readStringUntil('\n').toFloat();
       }
     }
-
-    break;
+      break;
     case 'r':
       isProfButton = whatNow[1] == '1';
       break;
@@ -693,6 +694,9 @@ int8_t startSharpening_t()
 {
   uint64_t xspeed = 24;
   uint64_t x_bias = 37;
+  uint64_t z_bias = 30;
+  float spZ = 0;
+  float minZ = 100000;
   switch (checker_t)
   {
   case Step_t_1:
@@ -703,6 +707,11 @@ int8_t startSharpening_t()
   case Step_t_2:
     if (isDown || true)
     {
+      for (int i = 0; i < profileArrN; i++)
+      {
+        if (profileArrZ[i] < minZ)
+          minZ = profileArrZ[i];
+      }
       checker_t = Step_t_3;
       stepperC.setSpeedInStepsPerSecond(speedZ);
       stepperC.setAccelerationInStepsPerSecondPerSecond(accZ);
@@ -730,57 +739,60 @@ int8_t startSharpening_t()
     }
     break;
   case Step_t_6:
-    if (moveC(-(profileArrZ[0] - 12)))
+    if (moveC(-(profileArrZ[0] + z_bias)))
     {
-      stepperC.setSpeedInMillimetersPerSecond(abs(profileArrZ[0] - profileArrZ[1]) / (abs(profileArrX[1] - profileArrX[0]) / xspeed));
-      stepperC.setAccelerationInMillimetersPerSecondPerSecond(abs(profileArrZ[0] - profileArrZ[1]) / (abs(profileArrX[1] - profileArrX[0]) / xspeed) * 2);
+      spZ = abs(profileArrZ[profileInd] - profileArrZ[profileInd + 1]) / (abs(profileArrX[profileInd + 1] - profileArrX[profileInd]) / xspeed);
+      stepperC.setSpeedInMillimetersPerSecond(spZ);
+      stepperC.setAccelerationInMillimetersPerSecondPerSecond(spZ * 2);
+      profileInd++;
       checker_t = Step_t_7;
     }
     break;
   case Step_t_7:
     moveX(profileArrX[3] + x_bias);
-    if (moveC(-(profileArrZ[1] - 12)))
+    if (moveC(-(minZ + z_bias)))
     {
       checker_t = Step_t_8;
+    }else{
+      spZ = abs(profileArrZ[profileInd] - profileArrZ[profileInd + 1]) / (abs(profileArrX[profileInd + 1] - profileArrX[profileInd]) / xspeed);
+      stepperC.setSpeedInMillimetersPerSecond(spZ);
+      stepperC.setAccelerationInMillimetersPerSecondPerSecond(spZ * 2);
+      profileInd++;
     }
     break;
   case Step_t_8:
     moveX(profileArrX[3] + x_bias);
-    if (abs(stepperX.getCurrentPositionInMillimeters() - profileArrX[2]) < 0.1)
-    {
-      stepperC.setSpeedInMillimetersPerSecond(abs(profileArrZ[3] - profileArrZ[2]) / (abs(profileArrX[3] - profileArrX[2]) / xspeed));
-      stepperC.setAccelerationInMillimetersPerSecondPerSecond(abs(profileArrZ[3] - profileArrZ[2]) / (abs(profileArrX[3] - profileArrX[2]) / xspeed) * 2);
-      checker_t = Step_t_9;
-    }
-    break;
-  case Step_t_9:
-    moveX(profileArrX[3] + x_bias);
-    if (moveC(-(profileArrZ[3] - 12)))
+    if (moveC(-(profileArrZ[profileArrN - 1] + z_bias)))
     {
       stepperC.setSpeedInStepsPerSecond(speedZ);
       stepperC.setAccelerationInStepsPerSecondPerSecond(accZ);
-      checker_t = Step_t_10;
+      checker_t = Step_t_9;
+    }else{
+      spZ = abs(profileArrZ[profileInd] - profileArrZ[profileInd + 1]) / (abs(profileArrX[profileInd + 1] - profileArrX[profileInd]) / xspeed);
+      stepperC.setSpeedInMillimetersPerSecond(spZ);
+      stepperC.setAccelerationInMillimetersPerSecondPerSecond(spZ * 2);
+      profileInd++;
     }
     break;
-  case Step_t_10:
+  case Step_t_9:
     if (moveC(-1) && moveX(profileArrX[3] + x_bias))
     {
       stepperX.setSpeedInMillimetersPerSecond(24);
       stepperX.setAccelerationInMillimetersPerSecondPerSecond(48);
-      checker_t = Step_t_11;
+      checker_t = Step_t_10;
     }
     break;
-  case Step_t_11:
+  case Step_t_10:
     if (moveX(1))
     {
-      checker_t = Step_t_12;
+      checker_t = Step_t_11;
     }
     break;
   default:
     break;
   }
 
-  return checker_t == Step_t_12;
+  return checker_t == Step_t_11;
 }
 
 uint8_t checkProfileFun(float speed, float time)
