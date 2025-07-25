@@ -88,8 +88,11 @@ uint32_t count_of_Sharps = 3;
 float rightZ = 0, leftZ = 0, rightX = 0, leftX = 0, leftVoltage = 10, rightVoltage = 10;
 float voltage = 0; // 30 - voltage/2.72 * 30
 
-float profileArrX[4];
-float profileArrZ[4];
+float profileArrX[100];
+float profileArrZ[100];
+
+
+uint32_t profileArrN = 0;
 uint32_t profileInd = 0;
 float step = 3;
 long long timeCheck = 0;
