@@ -46,7 +46,6 @@ void setup()
   stepperX.setSpeedInStepsPerSecond(speedX);
   stepperX.setAccelerationInStepsPerSecondPerSecond(accX);
   // stepperX.setupMoveInMillimeters(-200); // + Влево
-  // stepperX.setupMoveInMillimeters(-200); // + Влево
   //-----------------
 
   //-----------------

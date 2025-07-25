@@ -663,19 +663,16 @@ void recieveData()
       voltage = Serial.readStringUntil('\n').toFloat();
       break;
     case 'q':
-      profileArrX[0] = Serial.readStringUntil('\n').toFloat();
-      profileArrX[1] = Serial.readStringUntil('\n').toFloat();
-      profileArrX[2] = Serial.readStringUntil('\n').toFloat();
-      profileArrX[3] = Serial.readStringUntil('\n').toFloat();
+    {
+      int n = Serial.readStringUntil('\n').toInt();
+      for (int i = 0; i < n; i++)
+      {
+        profileArrX[i] = Serial.readStringUntil('\n').toFloat();
+        profileArrZ[i] = Serial.readStringUntil('\n').toFloat();
+      }
+    }
 
-      profileArrZ[0] = Serial.readStringUntil('\n').toFloat();
-      profileArrZ[1] = Serial.readStringUntil('\n').toFloat();
-      profileArrZ[2] = Serial.readStringUntil('\n').toFloat();
-      profileArrZ[3] = Serial.readStringUntil('\n').toFloat();
-
-      Serial.println("Profile X: " + String(profileArrX[0]) + " " + String(profileArrX[1]) + " " + String(profileArrX[2]) + " " + String(profileArrX[3]));
-      Serial.println("Profile Z: " + String(profileArrZ[0]) + " " + String(profileArrZ[1]) + " " + String(profileArrZ[2]) + " " + String(profileArrZ[3]));
-      break;
+    break;
     case 'r':
       isProfButton = whatNow[1] == '1';
       break;
@@ -935,7 +932,7 @@ void updateLazer()
   leftZ = rightZ;
   leftVoltage = rightVoltage;
   rightVoltage = voltage;
-  rightZ = (5.3 - voltage) * 6.1648049166;
+  rightZ = voltage * 6.1648049166;
   rightX = stepperX.getCurrentPositionInMillimeters();
 }
 
@@ -943,6 +940,6 @@ void transmitData()
 {
   Serial.print("x:");
   Serial.print(stepperX.getCurrentPositionInMillimeters());
-  Serial.print(",z:");
-  Serial.println(voltage * 6.1648049166);
+  Serial.print(",y:");
+  Serial.println(stepperY.getCurrentPositionInMillimeters());
 }
