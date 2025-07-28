@@ -2,12 +2,15 @@ import customtkinter as ctk
 import serial
 import re  # Import regex for parsing
 
-import time
+import pandas as pd
+import numpy as np
 import board
 import busio
+import time
 from enum import Enum, auto
 from adafruit_ina219 import INA219
 import csv
+import os
 
 
 class ProfileState(Enum):
@@ -49,6 +52,10 @@ x_value = 0
 # Function to average current over N samples
 
 
+
+fileName = "/home/ice/logs/laser_value0"
+
+
 def send_volt():
     global voltage
     voltage = ina.bus_voltage  # in volts
@@ -57,17 +64,154 @@ def send_volt():
 
     app.after(100, send_volt)
 
+def send_prof():
+    global profZ_df, profX_df
+    send_command("q1")
+    send_command(f"{len(profZ_df)}")
+    for i in range(len(profZ_df)):
+        time.sleep(0.1)
+        send_command("q0")
+        send_command(f"{i}")
+        send_command(f"{profX_df[i]}")
+        send_command(f"{profZ_df[i]}")
+        print(profX_df[i])
+        print(profZ_df[i])
+    send_command("q2")
+    send_command(f"{min(profZ_df)}")
+    for i in range(len(profX_df) - 1):
+        time.sleep(0.1)
+        sp = (abs(profZ_df[i] - profZ_df[i + 1]) / (abs(profX_df[i + 1] - profX_df[i]) / 24))
+        send_command("q3")
+        send_command(f"{i}")        
+        send_command(f"{sp}")
+        print(sp)
+
+
+def find_file_by_partial_name(partial_name, search_dir="."):
+    global fileName
+    matches = []
+    for root, dirs, files in os.walk(search_dir):
+        for file in files:
+            if partial_name in file:
+                full_path = os.path.join(root, file)
+                matches.append(full_path)
+    
+    if not matches:
+        print(fileName)
+        return fileName
+    elif len(matches) == 1:
+        print(f"Finded file: {matches[0]}")
+        return matches[0]
+    else:
+        print("Finded few files:")
+        for i, path in enumerate(matches, 1):
+            print(f"{i}: {path}")
+        return sorted(matches)[-1]
 
 def check_prof():
-    global left_x, right_x, left_z, right_z, left_voltage, right_voltage, voltage, x_value
+    global left_x, right_x, left_z, right_z, left_voltage, right_voltage, voltage, x_value, fileName
     update_laser()
-    print(left_voltage, right_voltage, left_x, right_x, left_z, right_z)
-    with open("laser_value", "a", newline="") as csvfile:
+    # # print(left_voltage, right_voltage, left_x, right_x, left_z, right_z)
+    # x = right_z
+    # z = left_z
+    # if stateProfile == ProfileState.FINDING_LEFT_PLATO:
+    #     x, z = get_x_from_laser(1, -1)
+
+    # elif stateProfile == ProfileState.FINDING_RIGHT_PLATO:
+    #     x, z = get_x_from_laser(1, -1)
+    #     #z = right_z
+
+    # elif stateProfile == ProfileState.FINDING_FINISH:
+    #     x, z = get_x_from_laser(-1, 1)
+
+
+    with open(fileName, "a", newline="") as csvfile:
         logs = csv.writer(csvfile, delimiter=";", quoting=csv.QUOTE_MINIMAL)
-        logs.writerow([left_voltage, right_voltage, left_x, right_x, left_z, right_z])
+        logs.writerow([round(left_voltage, 3), round(right_voltage, 3), 
+                       round(left_x, 3), round(right_x, 3), 
+                       round(left_z, 3), round(right_z, 3)])
+                    #    x, round(z, 3)])
 
     check_profile_fun()
-    app.after(500, check_prof)
+    if (stateProfile != ProfileState.END_PROFILE): 
+        app.after(500, check_prof)
+
+profX_df = []
+profZ_df = []
+
+
+
+def make_data():
+    global profX_df, profZ_df, fileName, left_x, right_x, left_z, right_z
+
+    df = pd.read_csv(fileName, names=['left_voltage', 'right_voltage', 'left_x', 'right_x', 'left_z', 'right_z'], sep=';')
+    df = df[df['left_voltage'] <= 5]
+    
+
+    profX_df = []
+    profZ_df = []
+
+    # Iterate through the DataFrame rows
+    for index, row in df.iterrows():
+        left_x = row['left_x']
+        left_z = row['left_z']
+        right_x = row['right_x']
+        right_z = row['right_z']
+
+        # Determine sign_x and sign_z based on right_x value
+        if right_x <= df['right_x'].max() / 2:
+            sign_x = 1
+            sign_z = -1
+        else:
+            sign_x = -1
+            sign_z = 1
+
+        x, z = get_x_from_laser(sign_x, sign_z)
+
+        profX_df.append(round(x, 3))
+        profZ_df.append(round(z, 3))
+
+    l_ind = 0
+    r_ind = 0
+
+    for i in range(1, len(profX_df)):
+
+        if abs(profZ_df[i - 1] - profZ_df[i]) < 0.1:
+            l_ind = i
+            break
+
+    for i in range(l_ind + 1, len(profX_df)):
+
+        if abs(profZ_df[i - 1] - profZ_df[i]) > 0.5 and abs(profZ_df[i - 1] - profZ_df[i]) < 1:
+            r_ind = i
+            break
+
+    data = profZ_df[l_ind:r_ind]
+    dataX = profX_df[l_ind:r_ind]
+
+    upper_threshold = np.percentile(data, 75)
+    lower_threshold = np.percentile(data, 25)
+    data_clipped = np.clip(data, lower_threshold, upper_threshold)
+
+    newX = profX_df[:l_ind]
+    newX.append(dataX[len(data_clipped) // 4])
+    newX.append(dataX[len(data_clipped) // 2])
+    newX.append(dataX[round(len(data_clipped)* 0.9)])
+    newX.extend(profX_df[r_ind:])
+
+    newZ = profZ_df[:l_ind]
+    newZ.append(list(data_clipped)[len(data_clipped) // 4])
+    newZ.append(list(data_clipped)[len(data_clipped) // 2])
+    newZ.append(list(data_clipped)[round(len(data_clipped) * 0.9)])
+    newZ.extend(profZ_df[r_ind:])
+    n_df = pd.DataFrame(np.transpose(np.array([newX, newZ])), columns = ['profile_arr_x', 'profile_arr_z'])
+    n_df = n_df[n_df['profile_arr_z'] <= n_df['profile_arr_z'][1]]
+    n_df.to_csv(fileName, index=False)
+
+    profX_df = list(n_df['profile_arr_x'])
+    profZ_df = list(n_df['profile_arr_z'])
+
+    app.after(100, send_prof)
 
 
 def update_laser():
@@ -77,44 +221,62 @@ def update_laser():
     left_z = right_z
     left_voltage = right_voltage
     right_voltage = voltage
-    right_z = voltage * 6.1648049166
+    right_z = (5 - voltage) * 6.1648049166 + 16
     right_x = x_value
 
-
 def get_x_from_laser(sign_x, sign_z):
-
     global right_x, right_z, left_x, left_z
-    r = 50
+    r = 30
+    eps = 1e-6  # минимальный допуск для избежания деления на ноль
 
-    hy = right_z - left_z
-
-    if hy == 0:
-        hy = 0.1
-
-    hx = right_x - left_x
-
-    if hx == 0:
-        hx = 3
-
-    cy = right_z - left_z
-    cx = 0
-    l = hy * cy / (hy**2 + hx**2)
-    if l == 0:
-        l = 1
+    # Обеспечиваем различие координат (если они равны — добавим небольшой сдвиг)
+    if right_x - left_x < eps:
+          lx = left_x - eps
     else:
-        print(l)
+        lx = left_x
 
-    if right_x == left_x:
-        difference = 3
-        vx = (left_x + difference * l) - left_x
+    if abs(right_z - left_z) < eps:
+        lz = left_z - eps
     else:
-        vx = (left_x + hx * l) - left_x
+        lz = left_z
+
+
+    # Разности координат
+    hx = right_x - lx
+    hy = right_z - lz
+    cy = hy
+
+    denom = hx**2 + hy**2
+
+    if denom < eps:
+        # если точки совпадают или очень близки — добавляю единицу
+        denom = denom + 1
+
+    # Расчёт параметра проекции
+    l = hy * cy / denom
+
+    # Вектор отрезка
+    vx = (left_x + hx * l) - left_x
     vy = (left_z + hy * l) - right_z
 
-    x = -sign_x * vx * r / (vx**2 + vy**2) ** 0.5 + right_x
-    y = -sign_z * vy * r / (vx**2 + vy**2) ** 0.5 + right_z
+    # Длина вектора
+    length = (vx**2 + vy**2) ** 0.5
+    if length < eps:
+        return [right_x, right_z - r]
+
+    # Расчёт конечных координат с учетом направления и масштаба
+
+    if sign_x > 0:
+        x = -vx * r / length + left_x
+    else:
+        x = vx * r / length + right_x
+    if sign_z > 0:
+        y = vy * r / length + right_z
+    else:
+        y = -vy * r / length + left_z
 
     return [x, y]
+
 
 
 def check_profile_fun():
@@ -127,7 +289,7 @@ def check_profile_fun():
     elif stateProfile == ProfileState.FINDING_START:
 
         if left_voltage <= 5:
-            profile_arr_x[0], profile_arr_z[0] = get_x_from_laser(1, 1)
+            profile_arr_x[0], profile_arr_z[0] = get_x_from_laser(1, -1)
             print_debug(
                 0,
                 left_voltage,
@@ -142,8 +304,8 @@ def check_profile_fun():
     elif stateProfile == ProfileState.FINDING_LEFT_PLATO:
 
         if abs(left_z - right_z) < 0.1:
-            profile_arr_x[1], profile_arr_z[1] = get_x_from_laser(1, 1)
-            profile_arr_z[1] = right_z
+            profile_arr_x[1], profile_arr_z[1] = get_x_from_laser(1, -1)
+            #profile_arr_z[1] = right_z
             print_debug(
                 1,
                 left_voltage,
@@ -158,8 +320,8 @@ def check_profile_fun():
     elif stateProfile == ProfileState.FINDING_RIGHT_PLATO:
 
         if abs(left_z - right_z) > 0.2:
-            profile_arr_x[2], profile_arr_z[2] = get_x_from_laser(1, 1)
-            profile_arr_z[2] = left_z
+            profile_arr_x[2], profile_arr_z[2] = get_x_from_laser(-1, 1)
+            #profile_arr_z[2] = left_z
             print_debug(
                 2,
                 left_voltage,
@@ -187,6 +349,7 @@ def check_profile_fun():
 
     elif stateProfile == ProfileState.PROFILE_STOP:
         send_command("e1")
+        app.after(1, make_data)
         stateProfile = ProfileState.END_PROFILE
 
         return stateProfile == ProfileState.END_PROFILE
@@ -225,9 +388,11 @@ def send_command(command):
 
 # Function to handle button press and release
 def on_press(command):
-    global stateProfile
+    global stateProfile, fileName
     if command == "r1":
         stateProfile = ProfileState.START_CHECK
+        file = find_file_by_partial_name("laser_value", "/home/ice/logs/")
+        fileName = file[:-1] + str(int(file[-1]) + 1)
         app.after(1, check_prof)
         print(stateProfile == ProfileState.START_CHECK)
     send_command(f"{command}")
@@ -255,16 +420,17 @@ def read_uart():
 
                     if data:  # Ensure data is not empty
                         pattern = re.compile(
-                            r"x:([-+]?\d*\.\d+|\d+),y:([-+]?\d*\.\d+|\d+)"
+                            r"x:([-+]?\d*\.\d+|\d+),y:([-+]?\d*\.\d+|\d+),z:([-+]?\d*\.\d+|\d+)"
                         )  # Regex pattern for float numbers
                         match = pattern.search(data)  # Try to match the expected format
 
                         if match:
-                            x_value, y_value = match.groups()  # Extract x and y values
+                            x_value, y_value, z_value = match.groups()  # Extract x and y values
 
                             x_value = float(x_value)  # Convert to float
                             y_value = float(y_value)  # Convert to float
-                            output_text = f"X: {x_value}, Y: {y_value}"
+                            z_value = float(z_value)  # Convert to float
+                            output_text = f"X: {x_value}, Y: {y_value}, Z: {z_value}"
 
                             # print(f"Parsed data: {output_text}")  # Debugging line to see parsed data
 

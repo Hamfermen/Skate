@@ -87,8 +87,12 @@ extern uint32_t count_of_Sharps;
 extern float rightZ, leftZ, rightX, leftX, leftVoltage, rightVoltage;
 extern float voltage;
 
-extern float profileArrX[100];
-extern float profileArrZ[100];
+extern float profileArrX[50];
+extern float profileArrZ[50];
+
+extern float profileArrSpZ[50];
+
+extern float minZ;
 
 extern uint32_t profileArrN;
 extern uint32_t profileInd;
