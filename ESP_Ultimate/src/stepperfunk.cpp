@@ -749,7 +749,7 @@ int8_t startSharpening_t()
     }
     break;
   case Step_t_7:
-    moveX(profileArrX[3] + x_bias);
+    moveX(profileArrX[profileArrN - 1] + x_bias);
     if (moveC(-(minZ + z_bias)))
     {
       checker_t = Step_t_8;
@@ -761,7 +761,7 @@ int8_t startSharpening_t()
     }
     break;
   case Step_t_8:
-    moveX(profileArrX[3] + x_bias);
+    moveX(profileArrX[profileArrN - 1] + x_bias);
     if (moveC(-(profileArrZ[profileArrN - 1] + z_bias)))
     {
       stepperC.setSpeedInStepsPerSecond(speedZ);
@@ -775,7 +775,7 @@ int8_t startSharpening_t()
     }
     break;
   case Step_t_9:
-    if (moveC(-1) && moveX(profileArrX[3] + x_bias))
+    if (moveC(-1) && moveX(profileArrX[profileArrN - 1] + x_bias))
     {
       stepperX.setSpeedInMillimetersPerSecond(24);
       stepperX.setAccelerationInMillimetersPerSecondPerSecond(48);
@@ -869,10 +869,10 @@ uint8_t checkProfileFun(float speed, float time)
       updateLazer();
       if (rightVoltage >= 5)
       {
-        profileArrX[3] = getXfromlazer(-1);
+        profileArrX[profileArrN - 1] = getXfromlazer(-1);
         profileArrZ[3] = getYfromlazer(1);
         Serial.println("----------------------------");
-        Serial.println(profileArrX[3]);
+        Serial.println(profileArrX[profileArrN - 1]);
         Serial.println(profileArrZ[3]);
         stateProfile = profileStop;
         stepperX.setupStop();
