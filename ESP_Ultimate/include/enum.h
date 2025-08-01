@@ -127,3 +127,26 @@ typedef enum
   endProfile
 
 } CheckProfile;
+
+enum DiskHandling {
+  DiskStart,
+  // Disk on Chuck steps
+  Chuck_MoveX,
+  Chuck_RaiseZ,
+  Chuck_MoveYOverBed,
+  Chuck_LowerZ,
+  Chuck_OpenClamp,
+  Chuck_RetractY,
+  Chuck_CloseClamp,
+  // Disk in Bed steps
+  Bed_MoveXZ,
+  Bed_OpenClamp,
+  Bed_MoveYToDisk,
+  Bed_CloseClamp,
+  Bed_RaiseZ,
+  Bed_RetractY,
+  Bed_LowerZ,
+  // Return to zero
+  ReturnToZero,
+  DiskHandlingDone
+};

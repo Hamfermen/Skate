@@ -12,6 +12,7 @@ extern InitialZero initialState;
 extern CheckDiamentr diamChecker;
 extern Alarm alarmProcessor;
 extern CheckProfile stateProfile;
+extern DiskHandling diskHandler;
 
 extern SpeedyStepper stepperX, stepperY, stepperD, stepperCl;
 extern FlexyStepper stepperC;
@@ -39,6 +40,7 @@ int8_t turnDown();
 
 int8_t startSharpening();
 int8_t startSharpening_t();
+uint8_t handleDisk(uint8_t isDiskOnChuck);
 
 int8_t checkAllDisks();
 

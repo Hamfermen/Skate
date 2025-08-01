@@ -16,6 +16,7 @@ InitialZero initialState = initialDown;
 CheckDiamentr diamChecker = StartDown;
 Alarm alarmProcessor = stop;
 CheckProfile stateProfile = startCheck;
+DiskHandling diskHandler = DiskStart;
 
 SpeedyStepper stepperX, stepperY, stepperD, stepperCl;
 FlexyStepper stepperC;
@@ -709,6 +710,105 @@ int8_t moveD(float rev)
   else if (stepperD.getCurrentPositionInRevolutions() != rev)
     stepperD.setupMoveInRevolutions(rev);
   return stepperD.motionComplete();
+}
+
+uint8_t handleDisk(uint8_t isDiskOnChuck) {
+
+  float xCoord = 0, zCoord = 0, yBed = 0, zBed = 0;
+
+  switch (diskHandler) {
+    case DiskStart:
+      if (isDiskOnChuck) {
+        diskHandler = Chuck_MoveX;
+      } else {
+        diskHandler = Bed_MoveXZ;
+      }
+      break;
+
+    // Disk on Chuck steps
+    case Chuck_MoveX:
+      if (moveX(xCoord)) {
+        diskHandler = Chuck_RaiseZ;
+      }
+      break;
+    case Chuck_RaiseZ:
+      if (moveC(-zCoord)) { // Raise Z to a safe height (adjust as needed)
+        diskHandler = Chuck_MoveYOverBed;
+      }
+      break;
+    case Chuck_MoveYOverBed:
+      if (moveY(yBed)) { // Move Y to position over bed
+        diskHandler = Chuck_LowerZ;
+      }
+      break;
+    case Chuck_LowerZ:
+      if (moveC(-zBed)) { // Lower Z to bed level
+        diskHandler = Chuck_OpenClamp;
+      }
+      break;
+    case Chuck_OpenClamp:
+      digitalWrite(pendout, HIGH); // Open disk clamp
+      diskHandler = Chuck_RetractY;
+      break;
+    case Chuck_RetractY:
+      if (moveY(140.1)) { // Retract Y to initial position
+        diskHandler = Chuck_CloseClamp;
+      }
+      break;
+    case Chuck_CloseClamp:
+      digitalWrite(pendout, LOW); // Close disk clamp
+      diskHandler = ReturnToZero;
+      break;
+
+    // Disk in Bed steps
+    case Bed_MoveXZ:
+      if (moveX(xCoord) && moveC(-zBed)) { // Move to disk's X, Z coordinates
+        diskHandler = Bed_OpenClamp;
+      }
+      break;
+    case Bed_OpenClamp:
+      digitalWrite(pendout, HIGH); // Open disk clamp
+      diskHandler = Bed_MoveYToDisk;
+      break;
+    case Bed_MoveYToDisk:
+      if (moveY(yBed)) { // Move Y to disk position
+        diskHandler = Bed_CloseClamp;
+      }
+      break;
+    case Bed_CloseClamp:
+      digitalWrite(pendout, LOW); // Close disk clamp
+      diskHandler = Bed_RaiseZ;
+      break;
+    case Bed_RaiseZ:
+      if (moveC(-zCoord)) { // Raise Z to safe height
+        diskHandler = Bed_RetractY;
+      }
+      break;
+    case Bed_RetractY:
+      if (moveY(140.1)) { // Retract Y to initial position
+        diskHandler = Bed_LowerZ;
+      }
+      break;
+    case Bed_LowerZ:
+      if (moveC(-1)) { // Lower Z to initial position
+        diskHandler = ReturnToZero;
+      }
+      break;
+
+    case ReturnToZero:
+      if (moveX(-1) && moveY(140.1) && moveC(-1)) { // Return to zero positions
+        diskHandler = DiskHandlingDone;
+      }
+      break;
+
+    case DiskHandlingDone:
+      break;
+
+    default:
+      break;
+  }
+
+  return diskHandler == DiskHandlingDone;
 }
 
 int8_t startSharpening_t()
