@@ -666,14 +666,35 @@ void recieveData()
       break;
     case 'q':
     {
-      profileArrN = Serial.readStringUntil('\n').toInt();
-      for (int i = 0; i < profileArrN; i++)
+      if (whatNow[1] == '1')
       {
+        profileArrN = Serial.readStringUntil('\n').toInt();
+      }
+      else if (whatNow[1] == '0')
+      {
+        int i = Serial.readStringUntil('\n').toInt();
+
         profileArrX[i] = Serial.readStringUntil('\n').toFloat();
         profileArrZ[i] = Serial.readStringUntil('\n').toFloat();
+        Serial.println("**************************************************");
+        Serial.println(profileArrX[i]);
+        Serial.println(profileArrZ[i]);
+      }
+      else if (whatNow[1] == '2')
+      {
+        minZ = Serial.readStringUntil('\n').toFloat();
+        Serial.println("**************************************************");
+        Serial.println(minZ);
+      }
+      else if (whatNow[1] == '3')
+      {
+        int i = Serial.readStringUntil('\n').toInt();
+        profileArrSpZ[i] = Serial.readStringUntil('\n').toFloat();
+        Serial.println("**************************************************");
+        Serial.println(profileArrSpZ[i]);
       }
     }
-      break;
+    break;
     case 'r':
       isProfButton = whatNow[1] == '1';
       break;
@@ -694,9 +715,8 @@ int8_t startSharpening_t()
 {
   uint64_t xspeed = 24;
   uint64_t x_bias = 37;
-  uint64_t z_bias = 30;
+  uint64_t z_bias = 20;
   float spZ = 0;
-  float minZ = 100000;
   switch (checker_t)
   {
   case Step_t_1:
@@ -741,9 +761,11 @@ int8_t startSharpening_t()
   case Step_t_6:
     if (moveC(-(profileArrZ[0] + z_bias)))
     {
-      spZ = abs(profileArrZ[profileInd] - profileArrZ[profileInd + 1]) / (abs(profileArrX[profileInd + 1] - profileArrX[profileInd]) / xspeed);
+      spZ = profileArrSpZ[profileInd];//abs(profileArrZ[profileInd] - profileArrZ[profileInd + 1]) / (abs(profileArrX[profileInd + 1] - profileArrX[profileInd]) / xspeed);
       stepperC.setSpeedInMillimetersPerSecond(spZ);
       stepperC.setAccelerationInMillimetersPerSecondPerSecond(spZ * 2);
+      Serial.println("-*-*-*-*-*-*-*-*-*-*-*-*-*");
+      Serial.println(spZ);
       profileInd++;
       checker_t = Step_t_7;
     }
@@ -753,10 +775,14 @@ int8_t startSharpening_t()
     if (moveC(-(minZ + z_bias)))
     {
       checker_t = Step_t_8;
-    }else{
-      spZ = abs(profileArrZ[profileInd] - profileArrZ[profileInd + 1]) / (abs(profileArrX[profileInd + 1] - profileArrX[profileInd]) / xspeed);
+    }
+    else if (stepperX.getCurrentPositionInMillimeters() >= profileArrX[profileInd] + x_bias)
+    {
+      spZ = profileArrSpZ[profileInd];//abs(profileArrZ[profileInd] - profileArrZ[profileInd + 1]) / (abs(profileArrX[profileInd + 1] - profileArrX[profileInd]) / xspeed);
       stepperC.setSpeedInMillimetersPerSecond(spZ);
       stepperC.setAccelerationInMillimetersPerSecondPerSecond(spZ * 2);
+      Serial.println("-*-*-*-*-*-*-*-*-*-*-*-*-*");
+      Serial.println(spZ);
       profileInd++;
     }
     break;
@@ -767,10 +793,14 @@ int8_t startSharpening_t()
       stepperC.setSpeedInStepsPerSecond(speedZ);
       stepperC.setAccelerationInStepsPerSecondPerSecond(accZ);
       checker_t = Step_t_9;
-    }else{
-      spZ = abs(profileArrZ[profileInd] - profileArrZ[profileInd + 1]) / (abs(profileArrX[profileInd + 1] - profileArrX[profileInd]) / xspeed);
+    }
+    else if (stepperX.getCurrentPositionInMillimeters() >= profileArrX[profileInd] + x_bias)
+    {
+      spZ = profileArrSpZ[profileInd];//abs(profileArrZ[profileInd] - profileArrZ[profileInd + 1]) / (abs(profileArrX[profileInd + 1] - profileArrX[profileInd]) / xspeed);
       stepperC.setSpeedInMillimetersPerSecond(spZ);
       stepperC.setAccelerationInMillimetersPerSecondPerSecond(spZ * 2);
+      Serial.println("-*-*-*-*-*-*-*-*-*-*-*-*-*");
+      Serial.println(spZ);
       profileInd++;
     }
     break;
@@ -785,6 +815,7 @@ int8_t startSharpening_t()
   case Step_t_10:
     if (moveX(1))
     {
+      profileInd = 0;
       checker_t = Step_t_11;
     }
     break;
@@ -944,7 +975,7 @@ void updateLazer()
   leftZ = rightZ;
   leftVoltage = rightVoltage;
   rightVoltage = voltage;
-  rightZ = (5.3 - voltage) * 6.1648049166;
+  rightZ = voltage * 6.1648049166;
   rightX = stepperX.getCurrentPositionInMillimeters();
 }
 
@@ -952,6 +983,8 @@ void transmitData()
 {
   Serial.print("x:");
   Serial.print(stepperX.getCurrentPositionInMillimeters());
+  Serial.print(",y:");
+  Serial.print(stepperY.getCurrentPositionInMillimeters());
   Serial.print(",z:");
-  Serial.println(voltage * 6.1648049166);
+  Serial.println(stepperC.getCurrentPositionInMillimeters());
 }
