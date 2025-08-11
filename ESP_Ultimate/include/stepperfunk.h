@@ -3,6 +3,8 @@
 #include <Arduino.h>
 #include "SpeedyStepper.h"
 #include "FlexyStepper.h"
+#include "GyverStepper2.h"
+#include "GyverPlanner2.h"
 #include "enum.h"
 
 extern DisksCheck checkerD;
@@ -14,8 +16,11 @@ extern Alarm alarmProcessor;
 extern CheckProfile stateProfile;
 extern DiskHandling diskHandler;
 
-extern SpeedyStepper stepperX, stepperY, stepperD, stepperCl;
-extern FlexyStepper stepperC;
+extern SpeedyStepper stepperY, stepperD, stepperCl;
+extern GStepper2<STEPPER2WIRE> stepperC;
+extern GStepper2<STEPPER2WIRE> stepperX;
+
+extern GPlanner2< STEPPER2WIRE, 2 > planner;
 
 uint8_t moveX(float);
 uint8_t moveY(float);

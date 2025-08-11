@@ -1,6 +1,8 @@
 #include <Arduino.h>
 #include <SpeedyStepper.h>
 #include <FlexyStepper.h>
+#include "GyverStepper2.h"
+#include "GyverPlanner2.h"
 
 #include "enum.h"
 #include "defines.h"
@@ -18,8 +20,11 @@ Alarm alarmProcessor = stop;
 CheckProfile stateProfile = startCheck;
 DiskHandling diskHandler = DiskStart;
 
-SpeedyStepper stepperX, stepperY, stepperD, stepperCl;
-FlexyStepper stepperC;
+SpeedyStepper stepperY, stepperD, stepperCl;
+GStepper2<STEPPER2WIRE> stepperC(12500, scale_mm_to_steps_x, dirPinX, stepPinX);
+GStepper2<STEPPER2WIRE> stepperX(12500, scale_mm_to_steps_z, overDir, overStep);
+
+GPlanner2 <STEPPER2WIRE, 2> planner;
 
 int8_t checkAllDisks()
 {
@@ -31,16 +36,16 @@ void alarmProcess()
   switch (alarmProcessor)
   {
   case stop:
-    if (!stepperX.motionComplete() || !stepperY.motionComplete() || !stepperD.motionComplete() || !stepperC.motionComplete() || stepperCl.motionComplete())
+    if (!(stepperX.getStatus() == 0) || !stepperY.motionComplete() || !stepperD.motionComplete() || !(stepperC.getStatus() == 0) || stepperCl.motionComplete())
     {
-      if (!stepperX.motionComplete())
-        stepperX.setupStop();
+      if (!(stepperX.getStatus() == 0))
+        stepperX.stop();
       if (!stepperY.motionComplete())
         stepperY.setupStop();
       if (!stepperD.motionComplete())
         stepperD.setupStop();
-      if (!stepperC.motionComplete())
-        stepperC.setTargetPositionToStop();
+      if (!(stepperC.getStatus() == 0))
+        stepperC.stop();
       if (!stepperCl.motionComplete())
         stepperCl.setupStop();
       alarmProcessor = processStop;
@@ -57,7 +62,7 @@ void alarmProcess()
       alarmProcessor = alarmStop;
     break;
   case processStop:
-    if (stepperX.processMovement() && stepperY.processMovement() && stepperD.processMovement() && stepperC.processMovement() && stepperCl.processMovement())
+    if (!stepperX.tick() && stepperY.processMovement() && stepperD.processMovement() && !stepperC.tick() && stepperCl.processMovement())
       alarmProcessor = alarmStop;
     break;
   case alarmStop:
@@ -79,15 +84,15 @@ uint8_t initializeGrind()
 uint8_t moveX(float x)
 {
 
-  if (!stepperX.motionComplete())
+  if (!(stepperX.getStatus() == 0))
   {
-    stepperX.processMovement();
+    stepperX.tick();
   }
-  else if (stepperX.getCurrentPositionInMillimeters() != x)
-    stepperX.setupMoveInMillimeters(x);
-  if (stepperX.motionComplete())
+  else if (stepperX.getCurrentMil() != x)
+    stepperX.setTargetMil(x);
+  if ((stepperX.getStatus() == 0))
     updateLazer();
-  return stepperX.motionComplete();
+  return (stepperX.getStatus() == 0);
 }
 
 uint8_t moveY(float y)
@@ -101,11 +106,11 @@ uint8_t moveY(float y)
 
 uint8_t moveC(float z)
 {
-  if (!stepperC.motionComplete())
-    stepperC.processMovement();
-  else if (stepperC.getCurrentPositionInMillimeters() != z)
-    stepperC.setTargetPositionInMillimeters(z);
-  return stepperC.motionComplete();
+  if (!(stepperC.getStatus() == 0))
+    stepperC.tick();
+  else if (stepperC.getCurrentMil() != z)
+    stepperC.setTargetMil(z);
+  return (stepperC.getStatus() == 0);
 }
 
 uint8_t moveCl(float z)
@@ -132,7 +137,7 @@ uint8_t movingX()
   int8_t pos = -1;
   if (xNum == 2)
     pos = 1;
-  return moveX(stepperX.getCurrentPositionInMillimeters() - 0.2 * pos);
+  return moveX(stepperX.getCurrentMil() - 0.2 * pos);
 }
 
 uint8_t movingY()
@@ -166,7 +171,7 @@ uint8_t clamping()
     return false;
   };
 }
-
+/*
 int8_t startSharpening()
 {
 
@@ -403,7 +408,7 @@ int8_t startSharpening()
 
   return checker == Done;
 }
-
+*/
 void initializeZeros()
 {
 
@@ -418,8 +423,8 @@ void initializeZeros()
     moveC(80);
     if (c_zero)
     {
-      stepperC.setCurrentPositionInMillimeters(0);
-      stepperC.setTargetPositionInMillimeters(0);
+      stepperC.reset();
+      stepperC.setTargetMil(0);
       initialState = afterC;
     }
     break;
@@ -441,8 +446,8 @@ void initializeZeros()
   case afterCl:
     if (moveCl(84) || true)
     {
-      stepperX.setSpeedInStepsPerSecond(speedX);
-      stepperX.setAccelerationInStepsPerSecondPerSecond(accX);
+      stepperX.setMaxSpeed(speedX);
+      stepperX.setAcceleration(accX);
       initialState = initialX;
     }
     break;
@@ -450,11 +455,11 @@ void initializeZeros()
     moveX(-600);
     if (x_zero)
     {
-      Serial.println(stepperX.getCurrentPositionInMillimeters());
+      Serial.println(stepperX.getCurrentMil());
       initialState = afterX;
-      stepperX.setCurrentPositionInMillimeters(0);
-      stepperX.setupMoveInMillimeters(0);
-      Serial.println(stepperX.getCurrentPositionInMillimeters());
+      stepperX.reset();
+      stepperX.setTargetMil(0);
+      Serial.println(stepperX.getCurrentMil());
     }
     break;
   case afterX:
@@ -712,104 +717,120 @@ int8_t moveD(float rev)
   return stepperD.motionComplete();
 }
 
-uint8_t handleDisk(uint8_t isDiskOnChuck) {
+uint8_t handleDisk(uint8_t isDiskOnChuck)
+{
 
   float xCoord = 50, zCoord = 10, yBed = 190, zBed = 0;
 
-  switch (diskHandler) {
-    case DiskStart:
-      stepperY.setSpeedInStepsPerSecond(speedY / 2);
-      stepperY.setAccelerationInStepsPerSecondPerSecond(accY / 2);
-      if (isDiskOnChuck) {
-        diskHandler = Chuck_MoveX;
-      } else {
-        diskHandler = Bed_MoveXZ;
-      }
-      break;
+  switch (diskHandler)
+  {
+  case DiskStart:
+    stepperY.setSpeedInStepsPerSecond(speedY / 2);
+    stepperY.setAccelerationInStepsPerSecondPerSecond(accY / 2);
+    if (isDiskOnChuck)
+    {
+      diskHandler = Chuck_MoveX;
+    }
+    else
+    {
+      diskHandler = Bed_MoveXZ;
+    }
+    break;
 
-    // Disk on Chuck steps
-    case Chuck_MoveX:
-      if (moveX(xCoord)) {
-        diskHandler = Chuck_RaiseZ;
-      }
-      break;
-    case Chuck_RaiseZ:
-      if (moveC(-zCoord)) { // Raise Z to a safe height (adjust as needed)
-        diskHandler = Chuck_MoveYOverBed;
-      }
-      break;
-    case Chuck_MoveYOverBed:
-      if (moveY(yBed)) { // Move Y to position over bed
-        diskHandler = Chuck_LowerZ;
-      }
-      break;
-    case Chuck_LowerZ:
-      if (moveC(-zBed)) { // Lower Z to bed level
-        diskHandler = Chuck_OpenClamp;
-      }
-      break;
-    case Chuck_OpenClamp:
-      digitalWrite(pendout, HIGH); // Open disk clamp
-      diskHandler = Chuck_RetractY;
-      break;
-    case Chuck_RetractY:
-      if (moveY(140.1)) { // Retract Y to initial position
-        diskHandler = Chuck_CloseClamp;
-      }
-      break;
-    case Chuck_CloseClamp:
-      digitalWrite(pendout, LOW); // Close disk clamp
+  // Disk on Chuck steps
+  case Chuck_MoveX:
+    if (moveX(xCoord))
+    {
+      diskHandler = Chuck_RaiseZ;
+    }
+    break;
+  case Chuck_RaiseZ:
+    if (moveC(-zCoord))
+    { // Raise Z to a safe height (adjust as needed)
+      diskHandler = Chuck_MoveYOverBed;
+    }
+    break;
+  case Chuck_MoveYOverBed:
+    if (moveY(yBed))
+    { // Move Y to position over bed
+      diskHandler = Chuck_LowerZ;
+    }
+    break;
+  case Chuck_LowerZ:
+    if (moveC(-zBed))
+    { // Lower Z to bed level
+      diskHandler = Chuck_OpenClamp;
+    }
+    break;
+  case Chuck_OpenClamp:
+    digitalWrite(pendout, HIGH); // Open disk clamp
+    diskHandler = Chuck_RetractY;
+    break;
+  case Chuck_RetractY:
+    if (moveY(140.1))
+    { // Retract Y to initial position
+      diskHandler = Chuck_CloseClamp;
+    }
+    break;
+  case Chuck_CloseClamp:
+    digitalWrite(pendout, LOW); // Close disk clamp
+    diskHandler = ReturnToZero;
+    break;
+
+  // Disk in Bed steps
+  case Bed_MoveXZ:
+    if (moveX(xCoord) && moveC(-zBed))
+    { // Move to disk's X, Z coordinates
+      diskHandler = Bed_OpenClamp;
+    }
+    break;
+  case Bed_OpenClamp:
+    digitalWrite(pendout, HIGH); // Open disk clamp
+
+    diskHandler = Bed_MoveYToDisk;
+    break;
+  case Bed_MoveYToDisk:
+    if (moveY(yBed))
+    { // Move Y to disk position
+      diskHandler = Bed_CloseClamp;
+    }
+    break;
+  case Bed_CloseClamp:
+    digitalWrite(pendout, LOW); // Close disk clamp
+
+    diskHandler = Bed_RaiseZ;
+    break;
+  case Bed_RaiseZ:
+    if (moveC(-zCoord))
+    { // Raise Z to safe height
+      diskHandler = Bed_RetractY;
+    }
+    break;
+  case Bed_RetractY:
+    if (moveY(140.1))
+    { // Retract Y to initial position
+      diskHandler = Bed_LowerZ;
+    }
+    break;
+  case Bed_LowerZ:
+    if (moveC(-1))
+    { // Lower Z to initial position
       diskHandler = ReturnToZero;
-      break;
+    }
+    break;
 
-    // Disk in Bed steps
-    case Bed_MoveXZ:
-      if (moveX(xCoord) && moveC(-zBed)) { // Move to disk's X, Z coordinates
-        diskHandler = Bed_OpenClamp;
-      }
-      break;
-    case Bed_OpenClamp:
-      digitalWrite(pendout, HIGH); // Open disk clamp
+  case ReturnToZero:
+    if (moveX(1) && moveY(140.1) && moveC(-1))
+    { // Return to zero positions
+      diskHandler = DiskHandlingDone;
+    }
+    break;
 
-      diskHandler = Bed_MoveYToDisk;
-      break;
-    case Bed_MoveYToDisk:
-      if (moveY(yBed)) { // Move Y to disk position
-        diskHandler = Bed_CloseClamp;
-      }
-      break;
-    case Bed_CloseClamp:
-      digitalWrite(pendout, LOW); // Close disk clamp
+  case DiskHandlingDone:
+    break;
 
-      diskHandler = Bed_RaiseZ;
-      break;
-    case Bed_RaiseZ:
-      if (moveC(-zCoord)) { // Raise Z to safe height
-        diskHandler = Bed_RetractY;
-      }
-      break;
-    case Bed_RetractY:
-      if (moveY(140.1)) { // Retract Y to initial position
-        diskHandler = Bed_LowerZ;
-      }
-      break;
-    case Bed_LowerZ:
-      if (moveC(-1)) { // Lower Z to initial position
-        diskHandler = ReturnToZero;
-      }
-      break;
-
-    case ReturnToZero:
-      if (moveX(1) && moveY(140.1) && moveC(-1)) { // Return to zero positions
-        diskHandler = DiskHandlingDone;
-      }
-      break;
-
-    case DiskHandlingDone:
-      break;
-
-    default:
-      break;
+  default:
+    break;
   }
 
   return diskHandler == DiskHandlingDone;
@@ -817,7 +838,7 @@ uint8_t handleDisk(uint8_t isDiskOnChuck) {
 
 int8_t startSharpening_t()
 {
-  uint64_t xspeed = 12;
+  uint64_t xspeed = 24;
   uint64_t x_bias = 37;
   uint64_t z_bias = 20;
   float spZ = 0;
@@ -838,37 +859,50 @@ int8_t startSharpening_t()
           minZ = profileArrZ[i];
       }
       checker_t = Step_t_3;
-      stepperC.setSpeedInStepsPerSecond(speedZ);
-      stepperC.setAccelerationInStepsPerSecondPerSecond(accZ);
+      stepperC.setMaxSpeed(speedZ);
+      stepperC.setAcceleration(accZ);
 
-      stepperX.setSpeedInMillimetersPerSecond(xspeed);
-      stepperX.setAccelerationInMillimetersPerSecondPerSecond(xspeed);
+      stepperX.setMaxSpeedMil(xspeed);
+      stepperX.setAccelerationMil(xspeed);
     }
     break;
   case Step_t_3:
-    if (moveC(-1))
+    if (moveC(0))
     {
       checker_t = Step_t_4;
     }
     break;
   case Step_t_4:
-    if (moveX(1))
+    if (moveX(0))
     {
+      planner.setAcceleration(12000);
+      planner.setMaxSpeed(6000);
+      int32_t arr[2] = {0, 0};
+      planner.setCurrent(arr);
+      planner.start();
       checker_t = Step_t_5;
     }
     break;
   case Step_t_5:
-    if (moveX(profileArrX[0] + x_bias))
+    planner.tick();
+    if (planner.available() && planner.getStatus() != 3)
     {
-      checker_t = Step_t_6;
+      int32_t arr[2] = {(int32_t)(profileArrX[profileInd] * scale_mm_to_steps_x), (int32_t)(profileArrZ[profileInd] * scale_mm_to_steps_z)};
+      profileInd++;
+      planner.addTarget(arr, profileInd >= profileArrN ? 1 : 0);
+    }
+    else
+    {
+      planner.resume();
+      checker_t = Step_t_9;
     }
     break;
   case Step_t_6:
     if (moveC(-(profileArrZ[0] + z_bias)))
     {
-      spZ = profileArrSpZ[profileInd];//abs(profileArrZ[profileInd] - profileArrZ[profileInd + 1]) / (abs(profileArrX[profileInd + 1] - profileArrX[profileInd]) / xspeed);
-      stepperC.setSpeedInMillimetersPerSecond(spZ);
-      stepperC.setAccelerationInMillimetersPerSecondPerSecond(spZ * 3);
+      spZ = profileArrSpZ[profileInd]; // abs(profileArrZ[profileInd] - profileArrZ[profileInd + 1]) / (abs(profileArrX[profileInd + 1] - profileArrX[profileInd]) / xspeed);
+      // stepperC.setMaxSpeedMil(spZ);
+      // stepperC.setAccelerationInMillimetersPerSecondPerSecond(spZ * 3);
       Serial.println("-*-*-*-*-*-*-*-*-*-*-*-*-*");
       Serial.println(spZ);
       profileInd++;
@@ -881,11 +915,11 @@ int8_t startSharpening_t()
     {
       checker_t = Step_t_8;
     }
-    else if (stepperX.getCurrentPositionInMillimeters() >= profileArrX[profileInd] + x_bias)
+    else if (stepperX.getCurrentMil() >= profileArrX[profileInd] + x_bias)
     {
-      spZ = profileArrSpZ[profileInd];//abs(profileArrZ[profileInd] - profileArrZ[profileInd + 1]) / (abs(profileArrX[profileInd + 1] - profileArrX[profileInd]) / xspeed);
-      stepperC.setSpeedInMillimetersPerSecond(spZ);
-      stepperC.setAccelerationInMillimetersPerSecondPerSecond(spZ * 3);
+      spZ = profileArrSpZ[profileInd]; // abs(profileArrZ[profileInd] - profileArrZ[profileInd + 1]) / (abs(profileArrX[profileInd + 1] - profileArrX[profileInd]) / xspeed);
+      // stepperC.setSpeedInMillimetersPerSecond(spZ);
+      // stepperC.setAccelerationInMillimetersPerSecondPerSecond(spZ * 3);
       Serial.println("-*-*-*-*-*-*-*-*-*-*-*-*-*");
       Serial.println(spZ);
       profileInd++;
@@ -895,25 +929,25 @@ int8_t startSharpening_t()
     moveX(profileArrX[profileArrN - 1] + x_bias);
     if (moveC(-(profileArrZ[profileArrN - 1] + z_bias)))
     {
-      stepperC.setSpeedInStepsPerSecond(speedZ);
-      stepperC.setAccelerationInStepsPerSecondPerSecond(accZ);
+      // stepperC.setSpeedInStepsPerSecond(speedZ);
+      // stepperC.setAccelerationInStepsPerSecondPerSecond(accZ);
       checker_t = Step_t_9;
     }
-    else if (stepperX.getCurrentPositionInMillimeters() >= profileArrX[profileInd] + x_bias)
+    else if (stepperX.getCurrentMil() >= profileArrX[profileInd] + x_bias)
     {
-      spZ = profileArrSpZ[profileInd];//abs(profileArrZ[profileInd] - profileArrZ[profileInd + 1]) / (abs(profileArrX[profileInd + 1] - profileArrX[profileInd]) / xspeed);
-      stepperC.setSpeedInMillimetersPerSecond(spZ);
-      stepperC.setAccelerationInMillimetersPerSecondPerSecond(spZ * 3);
+      spZ = profileArrSpZ[profileInd]; // abs(profileArrZ[profileInd] - profileArrZ[profileInd + 1]) / (abs(profileArrX[profileInd + 1] - profileArrX[profileInd]) / xspeed);
+      // stepperC.setSpeedInMillimetersPerSecond(spZ);
+      // stepperC.setAccelerationInMillimetersPerSecondPerSecond(spZ * 3);
       Serial.println("-*-*-*-*-*-*-*-*-*-*-*-*-*");
       Serial.println(spZ);
       profileInd++;
     }
     break;
   case Step_t_9:
-    if (moveC(-1) && moveX(profileArrX[profileArrN - 1] + x_bias))
+    if (moveC(-1))
     {
-      stepperX.setSpeedInMillimetersPerSecond(24);
-      stepperX.setAccelerationInMillimetersPerSecondPerSecond(48);
+      stepperX.setMaxSpeedMil(24);
+      stepperX.setAccelerationMil(48);
       checker_t = Step_t_10;
     }
     break;
@@ -939,7 +973,7 @@ uint8_t checkProfileFun(float speed, float time)
   case startCheck:
     if (moveY(171.83))
     {
-      stepperX.setSpeedInMillimetersPerSecond(speed);
+      stepperX.setMaxSpeedMil(speed);
       moveX(600);
       timeCheck = millis();
       stateProfile = findingStart;
@@ -1011,16 +1045,16 @@ uint8_t checkProfileFun(float speed, float time)
         Serial.println(profileArrX[profileArrN - 1]);
         Serial.println(profileArrZ[3]);
         stateProfile = profileStop;
-        stepperX.setupStop();
+        stepperX.stop();
       }
       timeCheck = millis();
     }
     break;
   case profileStop:
-    if (stepperX.processMovement())
+    if (!stepperX.tick())
     {
       stateProfile = movingZero;
-      stepperX.setSpeedInMillimetersPerSecond(36);
+      stepperX.setMaxSpeedMil(36);
     }
     break;
   case movingZero:
@@ -1081,15 +1115,15 @@ void updateLazer()
   leftVoltage = rightVoltage;
   rightVoltage = voltage;
   rightZ = voltage * 6.1648049166;
-  rightX = stepperX.getCurrentPositionInMillimeters();
+  rightX = stepperX.getCurrentMil();
 }
 
 void transmitData()
 {
   Serial.print("x:");
-  Serial.print(stepperX.getCurrentPositionInMillimeters());
+  Serial.print(stepperX.getCurrentMil());
   Serial.print(",y:");
   Serial.print(stepperY.getCurrentPositionInMillimeters());
   Serial.print(",z:");
-  Serial.println(stepperC.getCurrentPositionInMillimeters());
+  Serial.println(stepperC.getCurrentMil());
 }

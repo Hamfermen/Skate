@@ -1,6 +1,5 @@
 #include <Arduino.h>
-#include <SpeedyStepper.h>
-#include <FlexyStepper.h>
+
 
 #include "static.h"
 #include "enum.h"
@@ -47,10 +46,8 @@ void setup()
   pinMode(clampDir, OUTPUT);
 
   //-----------------
-  stepperX.connectToPins(stepPinX, dirPinX);
-  stepperX.setStepsPerMillimeter(scale_mm_to_steps_x);
-  stepperX.setSpeedInStepsPerSecond(speedX);
-  stepperX.setAccelerationInStepsPerSecondPerSecond(accX);
+  stepperX.setMaxSpeed(speedX);
+  stepperX.setAcceleration(accX);
   // stepperX.setupMoveInMillimeters(-200); // + Влево
   //-----------------
 
@@ -71,10 +68,8 @@ void setup()
   //-----------------
 
   //-----------------
-  stepperC.connectToPins(overStep, overDir);
-  stepperC.setStepsPerMillimeter(scale_mm_to_steps_z);
-  stepperC.setSpeedInStepsPerSecond(3200);
-  stepperC.setAccelerationInStepsPerSecondPerSecond(6400);
+  stepperC.setMaxSpeed(3200);
+  stepperC.setAcceleration(6400);
   // stepperC.setupMoveInMillimeters(-80); // - поднятие диска
   //-----------------
 
@@ -85,6 +80,9 @@ void setup()
   stepperCl.setAccelerationInStepsPerSecondPerSecond(16000);
   //  stepperCl.setupMoveInMillimeters(-50); // + увеличивает размер конька
   //-----------------
+
+  planner.addStepper(0, stepperX);  // ось 0
+  planner.addStepper(1, stepperC);  // ось 1
 
   time_now = millis();
   timeTransm = millis();
