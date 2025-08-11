@@ -20,6 +20,7 @@ int64_t grind_time = 0;
 uint8_t isSharpering = false;
 uint8_t isGrinding = false;
 uint8_t isInit = false;
+uint8_t isChange = false;
 
 uint8_t isAlarmButton = false;
 uint8_t isTurnOnButton = false;

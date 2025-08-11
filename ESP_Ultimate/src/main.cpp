@@ -7,6 +7,12 @@
 #include "stepperfunk.h"
 #include "defines.h"
 
+TaskHandle_t mainTask;
+TaskHandle_t transTask;
+
+void main_loop(void*);
+void transmitTask(void*);
+
 void setup()
 {
 
@@ -85,90 +91,125 @@ void setup()
   timeClamp = millis();
 
   digitalWrite(motdisk, HIGH);
+
+  xTaskCreatePinnedToCore(
+      main_loop,   /* Task function. */
+      "main_task", /* name of task. */
+      64000,       /* Stack size of task */
+      NULL,        /* parameter of the task */
+      1,           /* priority of the task */
+      &mainTask,   /* Task handle to keep track of created task */
+      1);          /* pin task to core 0 */
+
+  xTaskCreatePinnedToCore(
+      transmitTask,    /* Task function. */
+      "transmit_task", /* name of task. */
+      10000,           /* Stack size of task */
+      NULL,            /* parameter of the task */
+      1,               /* priority of the task */
+      &transTask,      /* Task handle to keep track of created task */
+      0);              /* pin task to core 0 */
 }
 
 
-void loop()
+
+void main_loop(void *args)
 {
-
-
-  recieveData();
-
-  if (!isAlarm && isTurnOn)
+  for (;;)
   {
+    recieveData();
 
-    if (isProf)
+    if (!isAlarm && isTurnOn)
     {
-      isProf = !checkProfileFun(6, 600);
-      isChecked |= !isProf;
-    }
-    else
-      stateProfile = startCheck;
 
-    if (isInit)
-    {
-      if (initialState != initialBoth)
-        initializeZeros();
+      if (isProf)
+      {
+        isProf = !checkProfileFun(6, 600);
+        isChecked |= !isProf;
+      }
       else
-        isInit = false;
+        stateProfile = startCheck;
+
+      if (isInit)
+      {
+        if (initialState != initialBoth)
+          initializeZeros();
+        else
+        {
+          isChange = true;
+          isInit = false;
+        }
+      }
+      else
+        initialState = initialDown;
+
+      // if (isChange)
+      //     isChange = !handleDisk(true);
+      // else
+      //     diskHandler = DiskStart;
+
+      if (isSharpering && isChecked)
+        isSharpering = !startSharpening_t();
+      else
+        checker_t = Step_t_1;
+
+      if (isGrinding)
+        isGrinding = !initializeGrind();
+      else
+        diamChecker = StartDown;
+
+      if (isChoosing)
+      {
+        isChoosing = !choseProf(profNum);
+      }
+
+      if (isX)
+      {
+        isX = !movingX();
+      }
+
+      if (isY)
+      {
+        isY = !movingY();
+      }
+
+      if (isCl)
+      {
+        isCl = !clamping();
+      }
+
+      if (isD)
+      {
+        isD = !choseD(dNum);
+      }
+      // else isTurnOn = false;
     }
-    else
-      initialState = initialDown;
-
-    if (isSharpering && isChecked)
-      isSharpering = !startSharpening_t();
-    else
-      checker_t = Step_t_1;
-
-    if (isGrinding)
-      isGrinding = !initializeGrind();
-    else
-      diamChecker = StartDown;
-
-    if (isChoosing)
+    else if (isAlarm)
     {
-      isChoosing = !choseProf(profNum);
+      alarmProcess();
     }
 
-    if (isX)
-    {
-      isX = !movingX();
-    }
+    // if (abs(millis() - time_now) > 5000)
+    // {
+    //   if (digitalRead(pendout))
+    //     digitalWrite(pendout, LOW);
+    //   time_now = millis();
+    // }
 
-    if (isY)
-    {
-      isY = !movingY();
-    }
-
-    if (isCl)
-    {
-      isCl = !clamping();
-    }
-
-    if (isD)
-    {
-      isD = !choseD(dNum);
-    }
-    // else isTurnOn = false;
-  }
-  else if (isAlarm)
-  {
-    alarmProcess();
-  }
-
-  if (abs(millis() - time_now) > 5000)
-  {
-    if (digitalRead(pendout))
-      digitalWrite(pendout, LOW);
-    time_now = millis();
-  }
-
-  handler();
-
-  if (abs(timeTransm - millis()) > 300)
-  {
-    timeTransm = millis();
-    transmitData();
+    handler();
   }
 }
 
+void transmitTask(void *args)
+{
+  for (;;)
+  {
+    transmitData();
+    vTaskDelay(300);
+
+  }
+}
+
+void loop() {
+  vTaskDelete(nullptr);
+}

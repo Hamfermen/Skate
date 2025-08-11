@@ -53,7 +53,7 @@ x_value = 0
 
 
 
-fileName = "/home/ice/logs/laser_value0"
+fileName = "/home/ice/logs/laser_value"
 
 
 def send_volt():
@@ -66,6 +66,7 @@ def send_volt():
 
 def send_prof():
     global profZ_df, profX_df
+    z_bias = 0
     send_command("q1")
     send_command(f"{len(profZ_df)}")
     for i in range(len(profZ_df)):
@@ -73,14 +74,15 @@ def send_prof():
         send_command("q0")
         send_command(f"{i}")
         send_command(f"{profX_df[i]}")
-        send_command(f"{profZ_df[i]}")
+        send_command(f"{profZ_df[i] + z_bias}")
         print(profX_df[i])
         print(profZ_df[i])
     send_command("q2")
     send_command(f"{min(profZ_df)}")
+    print(min(profZ_df))
     for i in range(len(profX_df) - 1):
         time.sleep(0.1)
-        sp = (abs(profZ_df[i] - profZ_df[i + 1]) / (abs(profX_df[i + 1] - profX_df[i]) / 24))
+        sp = (abs(profZ_df[i] - profZ_df[i + 1]) / (abs(profX_df[i + 1] - profX_df[i]) / 12))
         send_command("q3")
         send_command(f"{i}")        
         send_command(f"{sp}")
@@ -108,6 +110,8 @@ def find_file_by_partial_name(partial_name, search_dir="."):
             print(f"{i}: {path}")
         return sorted(matches)[-1]
 
+
+
 def check_prof():
     global left_x, right_x, left_z, right_z, left_voltage, right_voltage, voltage, x_value, fileName
     update_laser()
@@ -123,6 +127,7 @@ def check_prof():
 
     # elif stateProfile == ProfileState.FINDING_FINISH:
     #     x, z = get_x_from_laser(-1, 1)
+
 
 
     with open(fileName, "a", newline="") as csvfile:
@@ -191,25 +196,27 @@ def make_data():
 
     upper_threshold = np.percentile(data, 75)
     lower_threshold = np.percentile(data, 25)
-    data_clipped = np.clip(data, lower_threshold, upper_threshold)
+    data_clipped = data[:]#np.clip(data, lower_threshold, upper_threshold)
 
-    newX = profX_df[:l_ind]
+    newX = profX_df[:l_ind:2]
     newX.append(dataX[len(data_clipped) // 4])
     newX.append(dataX[len(data_clipped) // 2])
     newX.append(dataX[round(len(data_clipped)* 0.9)])
-    newX.extend(profX_df[r_ind:])
+    newX.extend(profX_df[r_ind::2])
 
-    newZ = profZ_df[:l_ind]
+    newZ = profZ_df[:l_ind:2]
     newZ.append(list(data_clipped)[len(data_clipped) // 4])
     newZ.append(list(data_clipped)[len(data_clipped) // 2])
     newZ.append(list(data_clipped)[round(len(data_clipped) * 0.9)])
-    newZ.extend(profZ_df[r_ind:])
+    newZ.extend(profZ_df[r_ind::2])
     n_df = pd.DataFrame(np.transpose(np.array([newX, newZ])), columns = ['profile_arr_x', 'profile_arr_z'])
-    n_df = n_df[n_df['profile_arr_z'] <= n_df['profile_arr_z'][1]]
-    n_df.to_csv(fileName, index=False)
+    n_df = n_df[n_df['profile_arr_z'] <= n_df['profile_arr_z'][0]]
+    n_df.to_csv(fileName + 'f', index=False)
 
     profX_df = list(n_df['profile_arr_x'])
     profZ_df = list(n_df['profile_arr_z'])
+
+
 
     app.after(100, send_prof)
 
@@ -226,7 +233,7 @@ def update_laser():
 
 def get_x_from_laser(sign_x, sign_z):
     global right_x, right_z, left_x, left_z
-    r = 30
+    r = 35
     eps = 1e-6  # минимальный допуск для избежания деления на ноль
 
     # Обеспечиваем различие координат (если они равны — добавим небольшой сдвиг)
@@ -391,8 +398,16 @@ def on_press(command):
     global stateProfile, fileName
     if command == "r1":
         stateProfile = ProfileState.START_CHECK
-        file = find_file_by_partial_name("laser_value", "/home/ice/logs/")
-        fileName = file[:-1] + str(int(file[-1]) + 1)
+        # file = find_file_by_partial_name("laser_value", "/home/ice/logs/")
+        # fileName = file[:-1] + str(int(file[-1]) + 1)
+        try:
+            os.remove(fileName)
+            print(f"File '{fileName}' deleted successfully.")
+        except FileNotFoundError:
+            print(f"File '{fileName}' not found.")
+        except PermissionError:
+            print(f"Permission denied to delete '{fileName}'.")
+
         app.after(1, check_prof)
         print(stateProfile == ProfileState.START_CHECK)
     send_command(f"{command}")

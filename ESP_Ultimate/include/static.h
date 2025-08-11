@@ -21,6 +21,8 @@ extern uint8_t isSharpering;
 extern uint8_t isGrinding;
 extern uint8_t isInit;
 
+extern uint8_t isChange;
+
 extern uint8_t isAlarmButton;
 extern uint8_t isTurnOnButton;
 extern uint8_t isProfButton;

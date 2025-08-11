@@ -714,10 +714,12 @@ int8_t moveD(float rev)
 
 uint8_t handleDisk(uint8_t isDiskOnChuck) {
 
-  float xCoord = 0, zCoord = 0, yBed = 0, zBed = 0;
+  float xCoord = 50, zCoord = 10, yBed = 190, zBed = 0;
 
   switch (diskHandler) {
     case DiskStart:
+      stepperY.setSpeedInStepsPerSecond(speedY / 2);
+      stepperY.setAccelerationInStepsPerSecondPerSecond(accY / 2);
       if (isDiskOnChuck) {
         diskHandler = Chuck_MoveX;
       } else {
@@ -768,6 +770,7 @@ uint8_t handleDisk(uint8_t isDiskOnChuck) {
       break;
     case Bed_OpenClamp:
       digitalWrite(pendout, HIGH); // Open disk clamp
+
       diskHandler = Bed_MoveYToDisk;
       break;
     case Bed_MoveYToDisk:
@@ -777,6 +780,7 @@ uint8_t handleDisk(uint8_t isDiskOnChuck) {
       break;
     case Bed_CloseClamp:
       digitalWrite(pendout, LOW); // Close disk clamp
+
       diskHandler = Bed_RaiseZ;
       break;
     case Bed_RaiseZ:
@@ -796,7 +800,7 @@ uint8_t handleDisk(uint8_t isDiskOnChuck) {
       break;
 
     case ReturnToZero:
-      if (moveX(-1) && moveY(140.1) && moveC(-1)) { // Return to zero positions
+      if (moveX(1) && moveY(140.1) && moveC(-1)) { // Return to zero positions
         diskHandler = DiskHandlingDone;
       }
       break;
@@ -813,10 +817,11 @@ uint8_t handleDisk(uint8_t isDiskOnChuck) {
 
 int8_t startSharpening_t()
 {
-  uint64_t xspeed = 24;
+  uint64_t xspeed = 12;
   uint64_t x_bias = 37;
   uint64_t z_bias = 20;
   float spZ = 0;
+
   switch (checker_t)
   {
   case Step_t_1:
@@ -863,7 +868,7 @@ int8_t startSharpening_t()
     {
       spZ = profileArrSpZ[profileInd];//abs(profileArrZ[profileInd] - profileArrZ[profileInd + 1]) / (abs(profileArrX[profileInd + 1] - profileArrX[profileInd]) / xspeed);
       stepperC.setSpeedInMillimetersPerSecond(spZ);
-      stepperC.setAccelerationInMillimetersPerSecondPerSecond(spZ * 2);
+      stepperC.setAccelerationInMillimetersPerSecondPerSecond(spZ * 3);
       Serial.println("-*-*-*-*-*-*-*-*-*-*-*-*-*");
       Serial.println(spZ);
       profileInd++;
@@ -880,7 +885,7 @@ int8_t startSharpening_t()
     {
       spZ = profileArrSpZ[profileInd];//abs(profileArrZ[profileInd] - profileArrZ[profileInd + 1]) / (abs(profileArrX[profileInd + 1] - profileArrX[profileInd]) / xspeed);
       stepperC.setSpeedInMillimetersPerSecond(spZ);
-      stepperC.setAccelerationInMillimetersPerSecondPerSecond(spZ * 2);
+      stepperC.setAccelerationInMillimetersPerSecondPerSecond(spZ * 3);
       Serial.println("-*-*-*-*-*-*-*-*-*-*-*-*-*");
       Serial.println(spZ);
       profileInd++;
@@ -898,7 +903,7 @@ int8_t startSharpening_t()
     {
       spZ = profileArrSpZ[profileInd];//abs(profileArrZ[profileInd] - profileArrZ[profileInd + 1]) / (abs(profileArrX[profileInd + 1] - profileArrX[profileInd]) / xspeed);
       stepperC.setSpeedInMillimetersPerSecond(spZ);
-      stepperC.setAccelerationInMillimetersPerSecondPerSecond(spZ * 2);
+      stepperC.setAccelerationInMillimetersPerSecondPerSecond(spZ * 3);
       Serial.println("-*-*-*-*-*-*-*-*-*-*-*-*-*");
       Serial.println(spZ);
       profileInd++;
@@ -932,7 +937,7 @@ uint8_t checkProfileFun(float speed, float time)
   switch (stateProfile)
   {
   case startCheck:
-    if (moveY(170.83))
+    if (moveY(171.83))
     {
       stepperX.setSpeedInMillimetersPerSecond(speed);
       moveX(600);
